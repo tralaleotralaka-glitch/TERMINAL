@@ -533,6 +533,7 @@ CATS = {
 
 
 def main() -> None:
+    check_only = "--check" in os.sys.argv
     seen = {}
     rows = []
     for cat, items in CATS.items():
@@ -544,6 +545,10 @@ def main() -> None:
     print("команд:", len(rows), "| по категориям:", {c: len(v) for c, v in CATS.items()})
     if len(rows) != 500:
         raise SystemExit(f"нужно ровно 500, получилось {len(rows)}")
+
+    if check_only:
+        print("каталог в порядке: 500 команд, дубликатов нет")
+        return
 
     out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "commands.js")
     body = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))

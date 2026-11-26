@@ -1573,7 +1573,32 @@
   });
 
   /* ============================================================
-     11. Загрузка
+     11. Мост для APK: кнопка «назад»
+     ============================================================ */
+  // Возвращает true, если нажатие обработано внутри приложения.
+  window.termBack = function () {
+    if (!sheet.hidden) {
+      closeSheet();
+      return true;
+    }
+    if (document.activeElement === search) {
+      search.blur();
+      return true;
+    }
+    if (input.value) {
+      input.value = "";
+      input.blur();
+      return true;
+    }
+    if (document.activeElement === input) {
+      input.blur();
+      return true;
+    }
+    return false;
+  };
+
+  /* ============================================================
+     12. Загрузка
      ============================================================ */
   function welcome() {
     bigArt("MINITERM", 8).forEach((r) =>
@@ -1611,10 +1636,12 @@
     print(`Подсказка: ↑ ↓ — история, Tab — автодополнение.`, "dim");
   }
 
-  hostTag.textContent = "localhost";
+  // Внутри APK экранная клавиатура не должна выезжать сама при запуске
+  const IS_WEBVIEW = /; wv\)|MiniTerminal/i.test(navigator.userAgent);
+  hostTag.textContent = IS_WEBVIEW ? "android" : "localhost";
   renderPrompt();
   buildChips();
   welcome();
   scrollBottom();
-  input.focus({ preventScroll: true });
+  if (!IS_WEBVIEW) input.focus({ preventScroll: true });
 })();

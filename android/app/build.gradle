@@ -1,0 +1,53 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.miniterm.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.miniterm.app'
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    // Если CI передал ключ — подписываем релиз им, иначе debug-ключом
+    // (такой APK ставится на телефон «из неизвестного источника» без проблем).
+    signingConfigs {
+        release {
+            def store = System.getenv('ANDROID_KEYSTORE_PATH')
+            if (store) {
+                storeFile file(store)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig System.getenv('ANDROID_KEYSTORE_PATH') ? signingConfigs.release : signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+// Никаких зависимостей: только Android SDK + WebView и наши assets.
+dependencies {
+}
