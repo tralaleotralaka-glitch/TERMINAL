@@ -1,0 +1,4 @@
+// Корневая сборка Android-обёртки. Плагины версиями зафиксированы здесь.
+plugins {
+    id 'com.android.application' version '8.7.2' apply false
+}

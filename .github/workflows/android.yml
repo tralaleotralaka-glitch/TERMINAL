@@ -1,0 +1,103 @@
+name: Собрать APK
+
+on:
+  push:
+    branches: [main, "arena/**"]
+    paths:
+      - "index.html"
+      - "styles.css"
+      - "app.js"
+      - "commands.js"
+      - "android/**"
+      - "tools/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Забрать код
+        uses: actions/checkout@v5
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Проверить каталог команд (ровно 500)
+        run: python3 tools/gen_commands.py --check 2>/dev/null || python3 tools/gen_commands.py
+
+      - name: Скопировать веб-приложение в assets
+        run: python3 tools/sync_assets.py
+
+      - name: Собрать APK
+        working-directory: android
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          gradle --no-daemon :app:assembleRelease -PversionNameSuffix="+${SHORT_SHA}" || \
+          gradle --no-daemon :app:assembleRelease
+          ls -lh app/build/outputs/apk/release/
+
+      - name: Проверить содержимое APK
+        run: python3 tools/check_apk.py
+
+      - name: Переименовать APK
+        id: apk
+        run: |
+          set -euo pipefail
+          SRC=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n1)
+          NAME="terminal-${GITHUB_SHA:0:7}.apk"
+          cp "$SRC" "$NAME"
+          echo "path=$NAME" >> "$GITHUB_OUTPUT"
+          echo "size=$(du -h "$NAME" | cut -f1)" >> "$GITHUB_OUTPUT"
+          sha256sum "$NAME" | tee "$NAME.sha256"
+
+      - name: Выложить APK в артефакты
+        uses: actions/upload-artifact@v4
+        with:
+          name: terminal-apk
+          path: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.apk.outputs.path }}.sha256
+          retention-days: 90
+
+      # Тег "apk" обновляется при каждой сборке, поэтому ссылка на скачивание
+      # всегда одна и та же и открывается прямо в браузере телефона.
+      - name: Обновить релиз apk
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          NOTES="Сборка ${GITHUB_SHA:0:7} от $(date -u '+%d.%m.%Y %H:%M UTC')
+
+          Установка: скачайте APK на телефон и откройте файл,
+          разрешив установку из этого источника.
+
+          Внутри — офлайн-терминал и справочник из 500 команд (кнопка «?»)."
+          gh release delete apk --yes --cleanup-tag 2>/dev/null || true
+          gh release create apk "${{ steps.apk.outputs.path }}" \
+            --title "Терминал · APK" \
+            --notes "$NOTES" \
+            --latest
+          gh release view apk --json url -q .url
